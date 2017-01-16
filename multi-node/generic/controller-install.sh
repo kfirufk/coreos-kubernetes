@@ -939,6 +939,8 @@ spec:
                 configMapKeyRef:
                   name: calico-config
                   key: cni_network_config
+          securityContext:
+            privileged: true
           volumeMounts:
             - mountPath: /host/opt/cni/bin
               name: cni-bin-dir
