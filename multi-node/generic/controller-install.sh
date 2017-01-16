@@ -914,6 +914,9 @@ spec:
             - mountPath: /var/run/calico
               name: var-run-calico
               readOnly: false
+            - mountPath: /etc/resolv.conf
+              name: dns
+              readOnly: true
         # This container installs the Calico CNI binaries
         # and CNI network config file on each node.
         - name: install-cni
@@ -958,6 +961,9 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/kubernetes/cni/net.d
+        - name: dns
+          hostPath:
+            path: /etc/resolv.conf
 
 ---
 
