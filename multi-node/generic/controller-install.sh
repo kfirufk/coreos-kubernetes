@@ -102,7 +102,7 @@ function init_templates {
 Environment=KUBELET_VERSION=${K8S_VER}
 Environment=KUBELET_ACI=${HYPERKUBE_IMAGE_REPO}
 Environment="RKT_OPTS=--uuid-file-save=${uuid_file} \
-  --volume dns,kind=host,source=/etc/resolv.conf \
+  --volume dns,kind=host,source=/run/systemd/resolve/resolv.conf \
   --mount volume=dns,target=/etc/resolv.conf \
   --volume rkt,kind=host,source=/opt/bin/host-rkt \
   --mount volume=rkt,target=/usr/bin/rkt \
@@ -963,7 +963,7 @@ spec:
             path: /etc/kubernetes/cni/net.d
         - name: dns
           hostPath:
-            path: /etc/resolv.conf
+            path: /run/systemd/resolve/resolv.conf
 
 ---
 
