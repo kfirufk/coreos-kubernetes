@@ -885,6 +885,33 @@ spec:
     spec:
       hostNetwork: true
       containers:
+        # This container installs the Calico CNI binaries
+        # and CNI network config file on each node.
+        - name: install-cni
+          image: quay.io/calico/cni:v1.5.2
+          imagePullPolicy: Always
+          command: ["/install-cni.sh"]
+          env:
+            # CNI configuration filename
+            - name: CNI_CONF_NAME
+              value: "10-calico.conf"
+            # The location of the Calico etcd cluster.
+            - name: ETCD_ENDPOINTS
+              valueFrom:
+                configMapKeyRef:
+                  name: calico-config
+                  key: etcd_endpoints
+            # The CNI network config to install on each node.
+            - name: CNI_NETWORK_CONFIG
+              valueFrom:
+                configMapKeyRef:
+                  name: calico-config
+                  key: cni_network_config
+          volumeMounts:
+            - mountPath: /host/opt/cni/bin
+              name: cni-bin-dir
+            - mountPath: /host/etc/cni/net.d
+              name: cni-net-dir
         # Runs calico/node container on each Kubernetes node.  This 
         # container programs network policy and routes on each
         # host.
@@ -917,33 +944,6 @@ spec:
             - mountPath: /etc/resolv.conf
               name: dns
               readOnly: true
-        # This container installs the Calico CNI binaries
-        # and CNI network config file on each node.
-        - name: install-cni
-          image: quay.io/calico/cni:v1.5.2
-          imagePullPolicy: Always
-          command: ["/install-cni.sh"]
-          env:
-            # CNI configuration filename
-            - name: CNI_CONF_NAME
-              value: "10-calico.conf"
-            # The location of the Calico etcd cluster.
-            - name: ETCD_ENDPOINTS
-              valueFrom:
-                configMapKeyRef:
-                  name: calico-config
-                  key: etcd_endpoints
-            # The CNI network config to install on each node.
-            - name: CNI_NETWORK_CONFIG
-              valueFrom:
-                configMapKeyRef:
-                  name: calico-config
-                  key: cni_network_config
-          volumeMounts:
-            - mountPath: /host/opt/cni/bin
-              name: cni-bin-dir
-            - mountPath: /host/etc/cni/net.d
-              name: cni-net-dir
       volumes:
         # Used by calico/node.
         - name: lib-modules
