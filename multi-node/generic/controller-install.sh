@@ -821,11 +821,11 @@ EOF
 EOF
     fi
 
-    local TEMPLATE=/srv/kubernetes/manifests/calico.yaml
     if [ "${USE_CALICO}" = "true" ]; then
+	local TEMPLATE=/srv/kubernetes/manifests/calico-config.yaml
     echo "TEMPLATE: $TEMPLATE"
     mkdir -p $(dirname $TEMPLATE)
-    cat << 'EOF' > $TEMPLATE
+    cat << EOF > $TEMPLATE
 # This ConfigMap is used to configure a self-hosted Calico installation.
 kind: ConfigMap
 apiVersion: v1
@@ -856,9 +856,11 @@ data:
           }
         }
     }
+EOF
 
----
-
+	local TEMPLATE=/srv/kubernetes/manifests/calico.yaml
+    echo "TEMPLATE: $TEMPLATE"
+	cat << 'EOF' > $TEMPLATE
 # This manifest installs the calico/node container, as well
 # as the Calico CNI plugins and network config on 
 # each master and worker node in a Kubernetes cluster.
@@ -938,7 +940,7 @@ spec:
               name: cni-net-dir
             # The CNI network config to install on each node.
             - mountPath: /host/cni_network_config
-              name: cni_network_config
+              name: cni-config
       volumes:
         # Used by calico/node.
         - name: lib-modules
@@ -1043,7 +1045,8 @@ function start_calico {
     echo "Deploying Calico"
     # Deploy Calico
     #TODO: change to rkt once this is resolved (https://github.com/coreos/rkt/issues/3181)
-    docker run --rm --net=host -v /srv/kubernetes/manifests:/host/manifests $HYPERKUBE_IMAGE_REPO:$K8S_VER /hyperkube kubectl apply -f /host/manifests/calico.yaml
+    docker run --rm --net=host -v /srv/kubernetes/manifests:/host/manifests $HYPERKUBE_IMAGE_REPO:$K8S_VER /hyperkube kubectl apply -f /host/manifests/calico-config.yaml,/host/manifests/calico.yaml
+
 }
 
 init_config
