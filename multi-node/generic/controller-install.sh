@@ -263,12 +263,12 @@ spec:
     - --service-cluster-ip-range=${SERVICE_IP_RANGE}
     - --secure-port=443
     - --advertise-address=${ADVERTISE_IP}
-    - --admission-control=DenyEscalatingExec,NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota
+    - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota
     - --tls-cert-file=/etc/kubernetes/ssl/apiserver.pem
     - --tls-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
     - --client-ca-file=/etc/kubernetes/ssl/ca.pem
     - --service-account-key-file=/etc/kubernetes/ssl/apiserver-key.pem
-    - --runtime-config=extensions/v1beta1/networkpolicies=true
+    - --runtime-config=extensions/v1beta1/networkpolicies=true,batch/v2alpha1=true
     - --anonymous-auth=false
     livenessProbe:
       httpGet:
@@ -919,7 +919,8 @@ spec:
         - name: install-cni
           image: quay.io/calico/cni:v1.5.2
           imagePullPolicy: Always
-          command: ["/install-cni.sh"]
+          command: ["/bin/sh", "-c"]
+          args: ["export CNI_NETWORK_CONFIG=$(cat /host/var/cni_network_config/cni_network_config.conf) && /install-cni.sh"]
           env:
             # CNI configuration filename
             - name: CNI_CONF_NAME
@@ -930,17 +931,14 @@ spec:
                 configMapKeyRef:
                   name: calico-config
                   key: etcd_endpoints
-            # The CNI network config to install on each node.
-            - name: CNI_NETWORK_CONFIG
-              valueFrom:
-                configMapKeyRef:
-                  name: calico-config
-                  key: cni_network_config
           volumeMounts:
             - mountPath: /host/opt/cni/bin
               name: cni-bin-dir
             - mountPath: /host/etc/cni/net.d
               name: cni-net-dir
+            # The CNI network config to install on each node.
+            - mountPath: /host/cni_network_config
+              name: cni_network_config
       volumes:
         # Used by calico/node.
         - name: lib-modules
@@ -956,6 +954,12 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/kubernetes/cni/net.d
+        - name: cni-config
+          configMap:
+            name: calico-config
+            items:
+            - key: cni_network_config
+              path: cni_network_config.conf
 
 ---
 
