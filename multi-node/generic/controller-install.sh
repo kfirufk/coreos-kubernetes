@@ -825,7 +825,7 @@ EOF
     if [ "${USE_CALICO}" = "true" ]; then
     echo "TEMPLATE: $TEMPLATE"
     mkdir -p $(dirname $TEMPLATE)
-    cat << EOF > $TEMPLATE
+    cat << 'EOF' > $TEMPLATE
 # This ConfigMap is used to configure a self-hosted Calico installation.
 kind: ConfigMap
 apiVersion: v1
