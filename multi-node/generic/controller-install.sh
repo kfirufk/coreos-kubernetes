@@ -821,11 +821,11 @@ EOF
 EOF
     fi
 
-    if [ "${USE_CALICO}" = "true" ]; then
 	local TEMPLATE=/srv/kubernetes/manifests/calico-config.yaml
-    echo "TEMPLATE: $TEMPLATE"
-    mkdir -p $(dirname $TEMPLATE)
-    cat << EOF > $TEMPLATE
+    if [ "${USE_CALICO}" = "true" ] && [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << EOF > $TEMPLATE
 # This ConfigMap is used to configure a self-hosted Calico installation.
 kind: ConfigMap
 apiVersion: v1
@@ -857,10 +857,13 @@ data:
         }
     }
 EOF
+	fi
 
 	local TEMPLATE=/srv/kubernetes/manifests/calico.yaml
-    echo "TEMPLATE: $TEMPLATE"
-	cat << 'EOF' > $TEMPLATE
+    if [ "${USE_CALICO}" = "true" ] && [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << 'EOF' > $TEMPLATE
 # This manifest installs the calico/node container, as well
 # as the Calico CNI plugins and network config on 
 # each master and worker node in a Kubernetes cluster.
