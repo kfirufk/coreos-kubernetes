@@ -920,7 +920,7 @@ spec:
           image: quay.io/calico/cni:v1.5.2
           imagePullPolicy: Always
           command: ["/bin/sh", "-c"]
-          args: ["export CNI_NETWORK_CONFIG=$(cat /host/var/cni_network_config/cni_network_config.conf) && /install-cni.sh"]
+          args: ["export CNI_NETWORK_CONFIG=$(cat /host/cni_network_config/config.conf) && /install-cni.sh"]
           env:
             # CNI configuration filename
             - name: CNI_CONF_NAME
@@ -959,7 +959,7 @@ spec:
             name: calico-config
             items:
             - key: cni_network_config
-              path: cni_network_config.conf
+              path: config.conf
 
 ---
 
