@@ -845,12 +845,12 @@ data:
         "name": "calico",
         "type": "flannel",
         "delegate": {
-		  "type": "calico",
-		  "etcd_endpoints": "__ETCD_ENDPOINTS__",
+          "type": "calico",
+          "etcd_endpoints": "__ETCD_ENDPOINTS__",
           "etcd_key_file": "__ETCD_KEY_FILE__",
           "etcd_cert_file": "__ETCD_CERT_FILE__",
           "etcd_ca_cert_file": "__ETCD_CA_CERT_FILE__",
-		  "log_level": "info",
+          "log_level": "info",
           "policy": {
             "type": "k8s",
             "k8s_api_root": "https://__KUBERNETES_SERVICE_HOST__:__KUBERNETES_SERVICE_PORT__",
@@ -859,7 +859,7 @@ data:
           "kubernetes": {
               "kubeconfig": "/etc/kubernetes/cni/net.d/__KUBECONFIG_FILENAME__"
           }
-		}
+        }
     }
 
   # If you're using TLS enabled etcd uncomment the following.
