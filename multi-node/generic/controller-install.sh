@@ -36,6 +36,9 @@ export USE_CALICO=false
 # Determines the container runtime for kubernetes to use. Accepts 'docker' or 'rkt'.
 export CONTAINER_RUNTIME=docker
 
+# System administrator email address
+export EMAIL=
+
 # The above settings can optionally be overridden using an environment file:
 ENV_FILE=/run/coreos-kubernetes/options.env
 
@@ -598,7 +601,7 @@ spec:
 EOF
     fi
 
-    local TEMPLATE=/srv/kubernetes/manifests/heapster-de.yaml
+    local TEMPLATE=/srv/kubernetes/manifests/heapster-influx-graphana-de.yaml
     if [ ! -f $TEMPLATE ]; then
         echo "TEMPLATE: $TEMPLATE"
         mkdir -p $(dirname $TEMPLATE)
@@ -606,29 +609,29 @@ EOF
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: heapster-v1.2.0
+  name: heapster-v1.3.0-beta.0
   namespace: kube-system
   labels:
     k8s-app: heapster
     kubernetes.io/cluster-service: "true"
-    version: v1.2.0
+    version: v1.3.0-beta.0
 spec:
   replicas: 1
   selector:
     matchLabels:
       k8s-app: heapster
-      version: v1.2.0
+      version: v1.3.0-beta.0
   template:
     metadata:
       labels:
         k8s-app: heapster
-        version: v1.2.0
+        version: v1.3.0-beta.0
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ''
         scheduler.alpha.kubernetes.io/tolerations: '[{"key":"CriticalAddonsOnly", "operator":"Exists"}]'
     spec:
       containers:
-        - image: gcr.io/google_containers/heapster:v1.2.0
+        - image: gcr.io/google_containers/heapster:v1.3.0-beta.0
           name: heapster
           livenessProbe:
             httpGet:
@@ -640,6 +643,7 @@ spec:
           command:
             - /heapster
             - --source=kubernetes.summary_api:''
+            - --sink=influxdb:http://monitoring-influxdb:8086
         - image: gcr.io/google_containers/addon-resizer:1.6
           name: heapster-nanny
           resources:
@@ -665,14 +669,86 @@ spec:
             - --memory=200Mi
             - --extra-memory=4Mi
             - --threshold=5
-            - --deployment=heapster-v1.2.0
+            - --deployment=heapster-v1.3.0-beta.0
             - --container=heapster
             - --poll-period=300000
             - --estimator=exponential
+
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: monitoring-influxdb
+  namespace: kube-system
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        task: monitoring
+        k8s-app: influxdb
+    spec:
+      containers:
+      - name: influxdb
+        image: gcr.io/google_containers/heapster-influxdb:v1.1.1
+        volumeMounts:
+        - mountPath: /data
+          name: influxdb-storage
+      volumes:
+      - name: influxdb-storage
+        emptyDir: {}
+
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: monitoring-grafana
+  namespace: kube-system
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        task: monitoring
+        k8s-app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: gcr.io/google_containers/heapster-grafana:v4.0.2
+        ports:
+          - containerPort: 3000
+            protocol: TCP
+        volumeMounts:
+        - mountPath: /var
+          name: grafana-storage
+        env:
+        - name: INFLUXDB_HOST
+          value: monitoring-influxdb
+        - name: GRAFANA_PORT
+          value: "3000"
+          # The following env variables are required to make Grafana accessible via
+          # the kubernetes api-server proxy. On production clusters, we recommend
+          # removing these env variables, setup auth for grafana, and expose the grafana
+          # service using a LoadBalancer or a public IP.
+        - name: GF_AUTH_BASIC_ENABLED
+          value: "false"
+        - name: GF_AUTH_ANONYMOUS_ENABLED
+          value: "true"
+        - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+          value: Admin
+        - name: GF_SERVER_ROOT_URL
+          # If you're only using the API Server proxy, set this value instead:
+          # value: /api/v1/proxy/namespaces/kube-system/services/monitoring-grafana/
+          value: /api/v1/proxy/namespaces/kube-system/services/monitoring-grafana/
+      volumes:
+      - name: grafana-storage
+        emptyDir: {}
 EOF
     fi
 
-    local TEMPLATE=/srv/kubernetes/manifests/heapster-svc.yaml
+    local TEMPLATE=/srv/kubernetes/manifests/heapster-influx-graphana-svc.yaml
     if [ ! -f $TEMPLATE ]; then
         echo "TEMPLATE: $TEMPLATE"
         mkdir -p $(dirname $TEMPLATE)
@@ -691,6 +767,50 @@ spec:
       targetPort: 8082
   selector:
     k8s-app: heapster
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    task: monitoring
+    # For use as a Cluster add-on (https://github.com/kubernetes/kubernetes/tree/master/cluster/addons)
+    # If you are NOT using this as an addon, you should comment out this line.
+    kubernetes.io/cluster-service: 'true'
+    kubernetes.io/name: monitoring-influxdb
+  name: monitoring-influxdb
+  namespace: kube-system
+spec:
+  ports:
+  - port: 8086
+    targetPort: 8086
+  selector:
+    k8s-app: influxdb
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    # For use as a Cluster add-on (https://github.com/kubernetes/kubernetes/tree/master/cluster/addons)
+    # If you are NOT using this as an addon, you should comment out this line.
+    kubernetes.io/cluster-service: 'true'
+    kubernetes.io/name: monitoring-grafana
+  name: monitoring-grafana
+  namespace: kube-system
+spec:
+  # In a production setup, we recommend accessing Grafana through an external Loadbalancer
+  # or through a public IP.
+  # type: LoadBalancer
+  # You could also use NodePort to expose the service at a randomly-generated port
+  # type: NodePort
+  ports:
+  - port: 80
+    targetPort: 3000
+  selector:
+    k8s-app: grafana
 EOF
     fi
 
@@ -762,6 +882,215 @@ spec:
     targetPort: 9090
 EOF
     fi
+	
+	local TEMPLATE=/srv/kubernetes/manifests/kube-lego.yaml
+    if [ ! -f $TEMPLATE ]; then
+        echo "TEMPLATE: $TEMPLATE"
+        mkdir -p $(dirname $TEMPLATE)
+        cat << EOF > $TEMPLATE
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kube-lego
+
+---
+
+apiVersion: v1
+metadata:
+  name: kube-lego
+  namespace: kube-lego
+data:
+  # modify this to specify your address
+  lego.email: "${EMAIL}"
+  # configure letencrypt's production api
+  lego.url: "https://acme-v01.api.letsencrypt.org/directory"
+kind: ConfigMap
+
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: kube-lego
+  namespace: kube-lego
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kube-lego
+    spec:
+      containers:
+      - name: kube-lego
+        image: jetstack/kube-lego:0.1.3
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: LEGO_EMAIL
+          valueFrom:
+            configMapKeyRef:
+              name: kube-lego
+              key: lego.email
+        - name: LEGO_URL
+          valueFrom:
+            configMapKeyRef:
+              name: kube-lego
+              key: lego.url
+        - name: LEGO_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: LEGO_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+EOF
+    fi
+
+	local TEMPLATE=/srv/kubernetes/manifests/ingress-nginx.yaml
+    if [ ! -f $TEMPLATE ]; then
+        echo "TEMPLATE: $TEMPLATE"
+        mkdir -p $(dirname $TEMPLATE)
+        cat << EOF > $TEMPLATE
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nginx-ingress
+
+---
+
+apiVersion: v1
+data:
+  proxy-connect-timeout: "15"
+  proxy-read-timeout: "600"
+  proxy-send-imeout: "600"
+  hsts-include-subdomains: "false"
+  body-size: "64m"
+  server-name-hash-bucket-size: "256"
+  use-http2: "true"
+  use-gzip: "true"
+kind: ConfigMap
+metadata:
+  namespace: nginx-ingress
+  name: nginx
+
+---
+
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: nginx
+  namespace: nginx-ingress
+  labels:
+    k8s-app: nginx-ingress-lb
+spec:
+  template:
+    metadata:
+      labels:
+        name: nginx
+        k8s-app: nginx-ingress-lb
+    spec:
+      containers:
+      - image: gcr.io/google_containers/nginx-ingress-controller:0.8.3
+        name: nginx
+        imagePullPolicy: Always
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 10249
+            scheme: HTTP
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+        ports:
+        - name: http
+          protocol: TCP
+          containerPort: 80
+          hostPort: 80
+        - name: https
+          protocol: TCP
+          containerPort: 443
+          hostPort: 443
+        args:
+        - /nginx-ingress-controller
+        - --default-backend-service=nginx-ingress/default-http-backend
+        - --nginx-configmap=nginx-ingress/nginx
+      nodeSelector:
+        ingress: "true"
+EOF
+    fi
+	
+	local TEMPLATE=/srv/kubernetes/manifests/default-backend.yaml
+    if [ ! -f $TEMPLATE ]; then
+        echo "TEMPLATE: $TEMPLATE"
+        mkdir -p $(dirname $TEMPLATE)
+        cat << EOF > $TEMPLATE
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: default-http-backend
+  namespace: nginx-ingress
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: default-http-backend
+    spec:
+      containers:
+      - name: default-http-backend
+        # Any image is permissable as long as:
+        # 1. It serves a 404 page at /
+        # 2. It serves 200 on a /healthz endpoint
+        image: gcr.io/google_containers/defaultbackend:1.0
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: 10m
+            memory: 20Mi
+          requests:
+            cpu: 10m
+            memory: 20Mi
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: default-http-backend
+  namespace: nginx-ingress
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: default-http-backend
+EOF
+    fi	
 
     local TEMPLATE=/etc/flannel/options.env
     if [ ! -f $TEMPLATE ]; then
@@ -1125,9 +1454,14 @@ function start_addons {
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dns-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dns-autoscaler-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
-    echo "K8S: Heapster addon"
-    curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/heapster-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
-    curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/heapster-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+    echo "K8S: Heapster/InfluxDB/Graphana addon"
+    curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/heapster-influx-graphana-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
+    curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/heapster-influx-graphana-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+	echo "K8S: Kube-Lego addon"
+	curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-lego.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
+	echo "K8S: NGinx Ingress addon\nNOTE: MAKE SURE TO LABEL A NODE OTHER THAN THE MASTER 'ingress=true'"
+	curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/ingress-nginx.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
+	curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/default-backend.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
     echo "K8S: Dashboard addon"
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dashboard-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dashboard-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
