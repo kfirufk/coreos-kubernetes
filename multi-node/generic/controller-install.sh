@@ -42,14 +42,6 @@ export EMAIL=
 # The above settings can optionally be overridden using an environment file:
 ENV_FILE=/run/coreos-kubernetes/options.env
 
-# To run a self hosted Calico install it needs to be able to write to the CNI dir
-if [ ${USE_CALICO} = "true" ]; then
-	export CALICO_OPTS="--volume cni-bin,kind=host,source=/opt/cni/bin --mount volume=cni-bin,target=/opt/cni/bin"
-	echo "RKT Configured for Calico Binaries"
-else
-    export CALICO_OPTS=""
-fi
-
 # -------------
 
 function init_config {
@@ -100,7 +92,14 @@ function init_templates {
     if [ ! -f $TEMPLATE ]; then
         echo "TEMPLATE: $TEMPLATE"
         mkdir -p $(dirname $TEMPLATE)
-        cat << EOF > $TEMPLATE
+    # To run a self hosted Calico install it needs to be able to write to the CNI dir
+    if [ ${USE_CALICO} = "true" ]; then
+        local CALICO_OPTS="--volume cni-bin,kind=host,source=/opt/cni/bin --mount volume=cni-bin,target=/opt/cni/bin"
+        echo "RKT Configured for Calico Binaries"
+    else
+        local CALICO_OPTS=""
+    fi
+    cat << EOF > $TEMPLATE
 [Service]
 Environment=KUBELET_VERSION=${K8S_VER}
 Environment=KUBELET_ACI=${HYPERKUBE_IMAGE_REPO}
