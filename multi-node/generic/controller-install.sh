@@ -1303,7 +1303,7 @@ spec:
           volumeMounts:
             - mountPath: /lib/modules
               name: lib-modules
-              readOnly: true
+              readOnly: false
             - mountPath: /var/run/calico
               name: var-run-calico
               readOnly: false
