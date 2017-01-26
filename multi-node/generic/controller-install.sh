@@ -1254,7 +1254,7 @@ spec:
         # container programs network policy and routes on each
         # host.
         - name: calico-node
-          image: quay.io/calico/node:v1.0.0
+          image: quay.io/calico/node:v1.0.1
           env:
             # The location of the Calico etcd cluster.
             - name: ETCD_ENDPOINTS
@@ -1309,6 +1309,9 @@ spec:
               readOnly: false
             - mountPath: /calico-secrets
               name: etcd-certs
+            - mountPath: /etc/resolv.conf
+              name: dns
+              readOnly: true
         # This container installs the Calico CNI binaries
         # and CNI network config file on each node.
         - name: install-cni
@@ -1360,6 +1363,9 @@ spec:
             items:
             - key: cni_network_config
               path: config.conf
+        - name: dns
+          hostPath:
+            path: /etc/resolv.conf
 
 ---
 
