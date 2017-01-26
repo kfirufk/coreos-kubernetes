@@ -94,7 +94,8 @@ function init_templates {
         mkdir -p $(dirname $TEMPLATE)
     # To run a self hosted Calico install it needs to be able to write to the CNI dir
     if [ ${USE_CALICO} = "true" ]; then
-        local CALICO_OPTS="--volume cni-bin,kind=host,source=/opt/cni/bin --mount volume=cni-bin,target=/opt/cni/bin"
+        local CALICO_OPTS="--volume cni-bin,kind=host,source=/opt/cni/bin \
+        --mount volume=cni-bin,target=/opt/cni/bin"
         echo "RKT Configured for Calico Binaries"
     else
         local CALICO_OPTS=""
