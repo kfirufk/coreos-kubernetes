@@ -1309,9 +1309,9 @@ spec:
               readOnly: false
             - mountPath: /calico-secrets
               name: etcd-certs
-            - mountPath: /etc/resolv.conf
-              name: dns
-              readOnly: true
+            #- mountPath: /etc/resolv.conf
+            #  name: dns
+            #  readOnly: true
         # This container installs the Calico CNI binaries
         # and CNI network config file on each node.
         - name: install-cni
@@ -1365,7 +1365,7 @@ spec:
               path: config.conf
         - name: dns
           hostPath:
-            path: /etc/resolv.conf
+            path: /run/systemd/resolve/resolv.conf
 
 ---
 
@@ -1492,7 +1492,7 @@ chmod +x /opt/bin/host-rkt
 
 init_flannel
 
-systemctl stop update-engine; systemctl mask update-engine
+#systemctl stop update-engine; systemctl mask update-engine
 
 systemctl daemon-reload
 
