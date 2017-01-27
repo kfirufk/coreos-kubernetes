@@ -1254,7 +1254,7 @@ spec:
         # container programs network policy and routes on each
         # host.
         - name: calico-node
-          image: quay.io/calico/node:v1.0.1
+          image: quay.io/calico/node:v0.23.1
           env:
             # The location of the Calico etcd cluster.
             - name: ETCD_ENDPOINTS
