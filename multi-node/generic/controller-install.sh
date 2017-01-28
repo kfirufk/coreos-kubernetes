@@ -1234,8 +1234,6 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: calico-node
-  annotations:
-    rkt.alpha.kubernetes.io/stage1-name-override: coreos.com/rkt/stage1-fly
 spec:
   selector:
     matchLabels:
@@ -1249,6 +1247,7 @@ spec:
         scheduler.alpha.kubernetes.io/tolerations: |
           [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
            {"key":"CriticalAddonsOnly", "operator":"Exists"}]
+        rkt.alpha.kubernetes.io/stage1-name-override: coreos.com/rkt/stage1-fly
     spec:
       hostNetwork: true
       containers:
@@ -1330,6 +1329,8 @@ spec:
             # CNI configuration filename
             - name: CNI_CONF_NAME
               value: "10-calico.conf"
+          securityContext:
+            privileged: true
           volumeMounts:
             - mountPath: /host/opt/cni/bin
               name: cni-bin-dir
