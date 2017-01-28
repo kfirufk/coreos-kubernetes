@@ -1234,6 +1234,8 @@ metadata:
   namespace: kube-system
   labels:
     k8s-app: calico-node
+  annotations:
+    rkt.alpha.kubernetes.io/stage1-name-override: coreos.com/rkt/stage1-fly
 spec:
   selector:
     matchLabels:
@@ -1254,7 +1256,7 @@ spec:
         # container programs network policy and routes on each
         # host.
         - name: calico-node
-          image: quay.io/calico/node:v0.23.1
+          image: quay.io/calico/node:v1.0.1
           env:
             # The location of the Calico etcd cluster.
             - name: ETCD_ENDPOINTS
