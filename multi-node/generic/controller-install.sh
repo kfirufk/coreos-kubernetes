@@ -1247,7 +1247,6 @@ spec:
         scheduler.alpha.kubernetes.io/tolerations: |
           [{"key": "dedicated", "value": "master", "effect": "NoSchedule" },
            {"key":"CriticalAddonsOnly", "operator":"Exists"}]
-        rkt.alpha.kubernetes.io/stage1-name-override: coreos.com/rkt/stage1-fly
     spec:
       hostNetwork: true
       containers:
@@ -1256,6 +1255,8 @@ spec:
         # host.
         - name: calico-node
           image: quay.io/calico/node:v1.0.1
+          command: ["/bin/sh", "-c"]
+          args: ["mount -o remount,rw /proc/sys && start_runit"]
           env:
             # The location of the Calico etcd cluster.
             - name: ETCD_ENDPOINTS
