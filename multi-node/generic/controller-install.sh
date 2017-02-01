@@ -691,7 +691,7 @@ spec:
     spec:
       containers:
       - name: influxdb
-        image: gcr.io/google_containers/heapster-influxdb:v1.1.1
+        image: gcr.io/google_containers/heapster-influxdb:v0.13.0
         volumeMounts:
         - mountPath: /data
           name: influxdb-storage
@@ -716,7 +716,7 @@ spec:
     spec:
       containers:
       - name: grafana
-        image: gcr.io/google_containers/heapster-grafana:v4.0.2
+        image: gcr.io/google_containers/heapster-grafana:v2.6.0-2
         ports:
           - containerPort: 3000
             protocol: TCP

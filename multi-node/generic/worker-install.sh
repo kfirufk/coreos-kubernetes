@@ -33,14 +33,6 @@ export CONTAINER_RUNTIME=docker
 # The above settings can optionally be overridden using an environment file:
 ENV_FILE=/run/coreos-kubernetes/options.env
 
-# To run a self hosted Calico install it needs to be able to write to the CNI dir
-if [ "${USE_CALICO}" = "true" ]; then
-    export CALICO_OPTS="--volume cni-bin,kind=host,source=/opt/cni/bin \
-                        --mount volume=cni-bin,target=/opt/cni/bin"
-else
-    export CALICO_OPTS=""
-fi
-
 # -------------
 
 function init_config {
@@ -65,6 +57,14 @@ function init_config {
 function init_templates {
     local TEMPLATE=/etc/systemd/system/kubelet.service
     local uuid_file="/var/run/kubelet-pod.uuid"
+	# To run a self hosted Calico install it needs to be able to write to the CNI dir
+    if [ ${USE_CALICO} = "true" ]; then
+        local CALICO_OPTS="--volume cni-bin,kind=host,source=/opt/cni/bin \
+        --mount volume=cni-bin,target=/opt/cni/bin"
+        echo "RKT Configured for Calico Binaries"
+    else
+        local CALICO_OPTS=""
+    fi
     if [ ! -f $TEMPLATE ]; then
         echo "TEMPLATE: $TEMPLATE"
         mkdir -p $(dirname $TEMPLATE)
@@ -315,7 +315,7 @@ init_templates
 
 chmod +x /opt/bin/host-rkt
 
-systemctl stop update-engine; systemctl mask update-engine
+#systemctl stop update-engine; systemctl mask update-engine
 
 systemctl daemon-reload
 
