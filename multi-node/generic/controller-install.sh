@@ -972,7 +972,7 @@ data:
   proxy-read-timeout: "600"
   proxy-send-imeout: "600"
   hsts-include-subdomains: "false"
-  body-size: "64m"
+  body-size: "1064m"
   server-name-hash-bucket-size: "256"
   use-http2: "true"
   use-gzip: "true"
@@ -998,7 +998,7 @@ spec:
         k8s-app: nginx-ingress-lb
     spec:
       containers:
-      - image: gcr.io/google_containers/nginx-ingress-controller:0.8.3
+      - image: quay.io/promaethius/nginx-ingress
         name: nginx
         imagePullPolicy: Always
         env:
@@ -1450,6 +1450,96 @@ spec:
             secretName: calico-etcd-secrets
 EOF
     fi
+
+	local TEMPLATE=/etc/kubernetes/manifests/glusterfs.yaml
+    if [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << EOF > $TEMPLATE
+kind: DaemonSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: glusterfs
+  labels:
+    glusterfs: daemonset
+  annotations:
+    description: GlusterFS DaemonSet
+    tags: glusterfs
+spec:
+  template:
+    metadata:
+      name: glusterfs
+      labels:
+        glusterfs-node: pod
+    spec:
+      nodeSelector:
+        storagenode: glusterfs
+      hostNetwork: true
+      containers:
+      - image: quay.io/promaethius/glusterfs
+        imagePullPolicy: Always
+        name: glusterfs
+        volumeMounts:
+        - name: glusterfs-heketi
+          mountPath: "/var/lib/heketi"
+        - name: glusterfs-run
+          mountPath: "/run"
+        - name: glusterfs-lvm
+          mountPath: "/run/lvm"
+        - name: glusterfs-etc
+          mountPath: "/etc/glusterfs"
+        - name: glusterfs-logs
+          mountPath: "/var/log/glusterfs"
+        - name: glusterfs-config
+          mountPath: "/var/lib/glusterd"
+        - name: glusterfs-dev
+          mountPath: "/dev"
+        - name: glusterfs-misc
+          mountPath: "/var/lib/misc/glusterfsd"
+        securityContext:
+          privileged: true
+        readinessProbe:
+          timeoutSeconds: 3
+          initialDelaySeconds: 60
+          exec:
+            command:
+            - "/bin/bash"
+            - "-c"
+            - gluster peer status
+        livenessProbe:
+          timeoutSeconds: 3
+          initialDelaySeconds: 60
+          exec:
+            command:
+            - "/bin/bash"
+            - "-c"
+            - gluster peer status
+      volumes:
+      - name: glusterfs-heketi
+        hostPath:
+          path: "/var/lib/heketi"
+      - name: glusterfs-run
+      - name: glusterfs-lvm
+        hostPath:
+          path: "/run/lvm"
+      - name: glusterfs-etc
+        hostPath:
+          path: "/etc/glusterfs"
+      - name: glusterfs-logs
+        hostPath:
+          path: "/var/log/glusterfs"
+      - name: glusterfs-config
+        hostPath:
+          path: "/var/lib/glusterd"
+      - name: glusterfs-dev
+        hostPath:
+          path: "/dev"
+      - name: glusterfs-misc
+        hostPath:
+          path: "/var/lib/misc/glusterfsd"
+
+EOF
+		fi
 }
 
 function start_addons {
@@ -1470,6 +1560,8 @@ function start_addons {
     docker run --rm --net=host -v /srv/kubernetes/manifests:/host/manifests $HYPERKUBE_IMAGE_REPO:$K8S_VER /hyperkube kubectl apply -f /host/manifests/kube-lego.yaml
 	echo "K8S: NGinx Ingress addon"
     docker run --rm --net=host -v /srv/kubernetes/manifests:/host/manifests $HYPERKUBE_IMAGE_REPO:$K8S_VER /hyperkube kubectl apply -f /host/manifests/ingress-nginx.yaml,/host/manifests/default-backend.yaml
+	echo "K8S: GlusterFS addon"
+	docker run --rm --net=host -v /etc/kubernetes/manifests:/host/manifests $HYPERKUBE_IMAGE_REPO:$K8S_VER /hyperkube kubectl apply -f /host/manifests/glusterfs.yaml
     echo "K8S: Dashboard addon"
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dashboard-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dashboard-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
