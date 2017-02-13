@@ -1456,10 +1456,16 @@ EOF
 		echo "TEMPLATE: $TEMPLATE"
 		mkdir -p $(dirname $TEMPLATE)
 		cat << EOF > $TEMPLATE
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: filesystem
+---
 kind: DaemonSet
 apiVersion: extensions/v1beta1
 metadata:
   name: glusterfs
+  namespace: filesystem
   labels:
     glusterfs: daemonset
   annotations:
@@ -1537,7 +1543,92 @@ spec:
       - name: glusterfs-misc
         hostPath:
           path: "/var/lib/misc/glusterfsd"
-
+EOF
+		fi
+		
+	local TEMPLATE=/etc/kubernetes/manifests/heketi.yaml
+    if [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << EOF > $TEMPLATE
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: heketi-service-account
+  namespace: filesystem
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: deploy-heketi
+  namespace: filesystem
+  labels:
+    glusterfs: heketi-service
+    deploy-heketi: support
+  annotations:
+    description: Exposes Heketi Service
+spec:
+  selector:
+    name: deploy-heketi
+  ports:
+  - name: deploy-heketi
+    port: 8080
+    targetPort: 8080
+---
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: deploy-heketi
+  namespace: filesystem
+  labels:
+    glusterfs: heketi-deployment
+    deploy-heketi: heketi-deployment
+  annotations:
+    description: Defines how to deploy Heketi
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: deploy-heketi
+      labels:
+        name: deploy-heketi
+        glusterfs: heketi-pod
+    spec:
+      serviceAccountName: heketi-service-account
+      containers:
+      - image: quay.io/promaethius/heketi:master
+        imagePullPolicy: Always
+        name: deploy-heketi
+        env:
+        - name: HEKETI_EXECUTOR
+          value: kubernetes
+        - name: HEKETI_KUBE_USE_SECRET
+          value: "y"
+        - name: HEKETI_FSTAB
+          value: "/var/lib/heketi/fstab"
+        - name: HEKETI_SNAPSHOT_LIMIT
+          value: '5'
+        - name: HEKETI_KUBE_GLUSTER_DAEMONSET
+          value: "y"
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: db
+          mountPath: "/var/lib/heketi"
+        readinessProbe:
+          timeoutSeconds: 3
+          initialDelaySeconds: 3
+          httpGet:
+            path: "/hello"
+            port: 8080
+        livenessProbe:
+          timeoutSeconds: 3
+          initialDelaySeconds: 30
+          httpGet:
+            path: "/hello"
+            port: 8080
+      volumes:
+      - name: db
 EOF
 		fi
 }
