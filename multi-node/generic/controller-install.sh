@@ -30,6 +30,8 @@ export K8S_SERVICE_IP=10.3.0.1
 # This same IP must be configured on all worker nodes to enable DNS service discovery.
 export DNS_SERVICE_IP=10.3.0.10
 
+export GLOBAL_IP_RANGE=10.0.0.0/8
+
 # Whether to use Calico for Kubernetes network policy.
 export USE_CALICO=false
 
@@ -1693,9 +1695,9 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP
             - name: CEPH_PUBLIC_NETWORK
-              value: ${POD_NETWORK}
+              value: ${$GLOBAL_IP_RANGE}
             - name: CEPH_CLUSTER_NETWORK
-              value: ${POD_NETWORK}
+              value: ${$GLOBAL_IP_RANGE}
             - name: HOSTNAME
               valueFrom:
                 fieldRef:
@@ -2100,8 +2102,8 @@ EOF
 	chmod +x ${TEMPLATE}
 	fi
 	
-	export osd_cluster_network=$POD_NETWORK
-	export osd_public_network=$POD_NETWORK
+	export osd_cluster_network=$GLOBAL_IP_RANGE
+	export osd_public_network=$GLOBAL_IP_RANGE
 
 	cd /home/core/generator
 	./generate_secrets.sh all `./generate_secrets.sh fsid`
