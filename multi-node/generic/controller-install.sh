@@ -44,6 +44,10 @@ ENV_FILE=/run/coreos-kubernetes/options.env
 
 # -------------
 
+mkdir -p /opt/ceph
+mkdir -p /home/core/data/ceph/osd
+mkdir -p /home/core/data/ceph/mon
+
 function init_config {
     local REQUIRED=('ADVERTISE_IP' 'POD_NETWORK' 'ETCD_ENDPOINTS' 'SERVICE_IP_RANGE' 'K8S_SERVICE_IP' 'DNS_SERVICE_IP' 'K8S_VER' 'HYPERKUBE_IMAGE_REPO' 'USE_CALICO')
 
@@ -96,6 +100,10 @@ function init_templates {
     if [ ${USE_CALICO} = "true" ]; then
         local CALICO_OPTS="--volume cni-bin,kind=host,source=/opt/cni/bin \
         --mount volume=cni-bin,target=/opt/cni/bin"
+		mkdir -p /lib/modules
+		mkdir -p /var/run/calico
+		mkdir -p /opt/cni/bin
+		mkdir -p /etc/kubernetes/cni/net.d
         echo "RKT Configured for Calico Binaries"
     else
         local CALICO_OPTS=""
@@ -958,7 +966,7 @@ EOF
     if [ ! -f $TEMPLATE ]; then
         echo "TEMPLATE: $TEMPLATE"
         mkdir -p $(dirname $TEMPLATE)
-        cat << EOF > $TEMPLATE
+        cat << 'EOF' > $TEMPLATE
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -972,7 +980,7 @@ data:
   proxy-read-timeout: "600"
   proxy-send-imeout: "600"
   hsts-include-subdomains: "false"
-  body-size: "1064m"
+  proxy-body-size: "1064m"
   server-name-hash-bucket-size: "256"
   use-http2: "true"
   use-gzip: "true"
@@ -998,7 +1006,7 @@ spec:
         k8s-app: nginx-ingress-lb
     spec:
       containers:
-      - image: quay.io/promaethius/nginx-ingress
+      - image: quay.io/promaethius/ingress
         name: nginx
         imagePullPolicy: Always
         env:
@@ -1010,13 +1018,18 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 10254
+            scheme: HTTP
         livenessProbe:
           httpGet:
             path: /healthz
-            port: 10249
+            port: 10254
             scheme: HTTP
-          initialDelaySeconds: 30
-          timeoutSeconds: 5
+          initialDelaySeconds: 10
+          timeoutSeconds: 1
         ports:
         - name: http
           protocol: TCP
@@ -1028,8 +1041,8 @@ spec:
           hostPort: 443
         args:
         - /nginx-ingress-controller
-        - --default-backend-service=nginx-ingress/default-http-backend
-        - --nginx-configmap=nginx-ingress/nginx
+        - --default-backend-service=$(POD_NAMESPACE)/default-http-backend
+        - --configmap=$(POD_NAMESPACE)/nginx-load-balancer-conf
       nodeSelector:
         ingress: "true"
 EOF
@@ -1452,6 +1465,661 @@ EOF
     fi
 }
 
+function install_kubectl {
+
+mkdir -p /opt/bin
+
+curl -o /opt/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/${K8S_VER::-9}/bin/linux/amd64/kubectl
+chmod +x /opt/bin/kubectl
+
+kubectl config set-cluster default-cluster --server=https://controller.videaris.com --certificate-authority=/etc/kubernetes/ssl/ca.pem
+kubectl config set-credentials default-admin --certificate-authority=/etc/kubernetes/ssl/ca.pem --client-key=/etc/kubernetes/ssl/admin-key.pem --client-certificate=/etc/kubernetes/ssl/admin.pem
+kubectl config set-context default-system --cluster=default-cluster --user=default-admin
+kubectl config use-context default-system
+
+}
+
+function install_ceph {
+
+	PYTHON=${PYTHON:-"2.7.13.2713"}
+	SIGIL=${SIGIL:-"0.4.0"}
+
+	#Make directory
+	mkdir -p /opt/bin
+	cd /opt
+
+
+	#Install Python2.7
+	wget http://downloads.activestate.com/ActivePython/releases/${PYTHON}/ActivePython-${PYTHON}-linux-x86_64-glibc-2.3.6-401785.tar.gz
+	tar -xzvf ActivePython-${PYTHON}-linux-x86_64-glibc-2.3.6-401785.tar.gz
+
+	mv ActivePython-${PYTHON}-linux-x86_64-glibc-2.3.6-401785 apy && cd apy && ./install.sh -I /opt/python/
+
+	ln -s /opt/python/bin/easy_install /opt/bin/easy_install
+	ln -s /opt/python/bin/pip /opt/bin/pip
+	ln -s /opt/python/bin/python /opt/bin/python
+	ln -s /opt/python/bin/virtualenv /opt/bin/virtualenv
+
+
+	#Install Sigil
+	wget https://github.com/gliderlabs/sigil/releases/download/v${SIGIL}/sigil_${SIGIL}_Linux_x86_64.tgz
+	tar -xzvf sigil_${SIGIL}_Linux_x86_64.tgz
+
+	ln -s /opt/sigil /opt/bin/sigil
+
+
+	#Create Templates
+	local TEMPLATE=/srv/kubernetes/manifests/ceph-osd.yaml
+    if [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << 'EOF' > $TEMPLATE
+---
+kind: DaemonSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: ceph-osd
+  namespace: ceph
+  labels:
+    app: ceph
+    daemon: osd
+spec:
+  template:
+    metadata:
+      labels:
+        app: ceph
+        daemon: osd
+    spec:
+      nodeSelector:
+        node-type: storage
+      volumes:
+        - name: devices
+          hostPath:
+            path: /dev
+        - name: ceph
+#          emptyDir: {}
+          hostPath:
+            path: /opt/ceph
+        - name: ceph-conf
+          secret:
+            secretName: ceph-conf-combined
+        - name: ceph-bootstrap-osd-keyring
+          secret:
+            secretName: ceph-bootstrap-osd-keyring
+        - name: ceph-bootstrap-mds-keyring
+          secret:
+            secretName: ceph-bootstrap-mds-keyring
+        - name: ceph-bootstrap-rgw-keyring
+          secret:
+            secretName: ceph-bootstrap-rgw-keyring
+        - name: osd-directory
+#          emptyDir: {}
+          hostPath:
+            path: /home/core/data/ceph/osd
+      containers:
+        - name: osd-pod
+          image: ceph/daemon:latest
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: devices
+              mountPath: /dev
+            - name: ceph
+              mountPath: /var/lib/ceph
+            - name: ceph-conf
+              mountPath: /etc/ceph
+            - name: ceph-bootstrap-osd-keyring
+              mountPath: /var/lib/ceph/bootstrap-osd
+            - name: ceph-bootstrap-mds-keyring
+              mountPath: /var/lib/ceph/bootstrap-mds
+            - name: ceph-bootstrap-rgw-keyring
+              mountPath: /var/lib/ceph/bootstrap-rgw
+            - name: osd-directory
+              mountPath: /var/lib/ceph/osd
+          securityContext:
+            privileged: true
+          env:
+            - name: CEPH_DAEMON
+              value: osd_directory
+            - name: KV_TYPE
+              value: k8s
+            - name: CLUSTER
+              value: ceph
+            - name: CEPH_GET_ADMIN_KEY
+              value: "1"
+          livenessProbe:
+              tcpSocket:
+                port: 6800
+              initialDelaySeconds: 60
+              timeoutSeconds: 5
+          readinessProbe:
+              tcpSocket:
+                port: 6800
+              timeoutSeconds: 5
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "1000m"
+            limits:
+              memory: "1024Mi"
+              cpu: "2000m"
+EOF
+	fi
+	
+	local TEMPLATE=/srv/kubernetes/manifests/ceph-mon.yaml
+    if [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << EOF > $TEMPLATE
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ceph-mon
+  namespace: ceph
+  labels:
+    app: ceph
+    daemon: mon
+spec:
+  ports:
+  - port: 6789
+    protocol: TCP
+    targetPort: 6789
+  selector:
+    app: ceph
+    daemon: mon
+  clusterIP: None
+---
+kind: DaemonSet
+apiVersion: extensions/v1beta1
+metadata:
+  labels:
+    app: ceph
+    daemon: mon
+  name: ceph-mon
+  namespace: ceph
+spec:
+  template:
+    metadata:
+      name: ceph-mon
+      namespace: ceph
+      labels:
+        app: ceph
+        daemon: mon
+    spec:
+      nodeSelector:
+        node-type: storage
+      serviceAccount: default
+      volumes:
+        - name: ceph-conf
+          secret:
+            secretName: ceph-conf-combined
+        - name: ceph-bootstrap-osd-keyring
+          secret:
+            secretName: ceph-bootstrap-osd-keyring
+        - name: ceph-bootstrap-mds-keyring
+          secret:
+            secretName: ceph-bootstrap-mds-keyring
+        - name: ceph-bootstrap-rgw-keyring
+          secret:
+            secretName: ceph-bootstrap-rgw-keyring
+        - name: ceph-data
+          hostPath:
+            path: /home/core/data/ceph/mon
+      containers:
+        - name: ceph-mon
+          image: ceph/daemon:latest
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+          lifecycle:
+            preStop:
+                exec:
+                  # remove the mon on Pod stop.
+                  command:
+                    - "/remove-mon.sh"
+          ports:
+            - containerPort: 6789
+          env:
+            - name: CEPH_DAEMON
+              value: MON
+            - name: KV_TYPE
+              value: k8s
+            - name: NETWORK_AUTO_DETECT
+              value: "0"
+            - name: CLUSTER
+              value: ceph
+            - name: MON_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CEPH_PUBLIC_NETWORK
+              value: ${POD_NETWORK}
+            - name: CEPH_CLUSTER_NETWORK
+              value: ${POD_NETWORK}
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: ceph-conf
+              mountPath: /etc/ceph
+            - name: ceph-bootstrap-osd-keyring
+              mountPath: /var/lib/ceph/bootstrap-osd
+            - name: ceph-bootstrap-mds-keyring
+              mountPath: /var/lib/ceph/bootstrap-mds
+            - name: ceph-bootstrap-rgw-keyring
+              mountPath: /var/lib/ceph/bootstrap-rgw
+            - name: ceph-data
+              mountPath: /var/lib/ceph
+          livenessProbe:
+              tcpSocket:
+                port: 6789
+              initialDelaySeconds: 60
+              timeoutSeconds: 5
+          readinessProbe:
+              tcpSocket:
+                port: 6789
+              timeoutSeconds: 5
+---
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  labels:
+    app: ceph
+    daemon: moncheck
+  name: ceph-mon-check
+  namespace: ceph
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: ceph-mon
+      namespace: ceph
+      labels:
+        app: ceph
+        daemon: moncheck
+    spec:
+      serviceAccount: default
+      volumes:
+        - name: ceph-conf
+          secret:
+            secretName: ceph-conf-combined
+        - name: ceph-bootstrap-osd-keyring
+          secret:
+            secretName: ceph-bootstrap-osd-keyring
+        - name: ceph-bootstrap-mds-keyring
+          secret:
+            secretName: ceph-bootstrap-mds-keyring
+        - name: ceph-bootstrap-rgw-keyring
+          secret:
+            secretName: ceph-bootstrap-rgw-keyring
+      containers:
+        - name: ceph-mon
+          image: ceph/daemon:latest
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+          ports:
+            - containerPort: 6789
+          env:
+            - name: CEPH_DAEMON
+              value: MON_HEALTH
+            - name: KV_TYPE
+              value: k8s
+            - name: MON_IP_AUTO_DETECT
+              value: "1"
+            - name: CLUSTER
+              value: ceph
+          volumeMounts:
+            - name: ceph-conf
+              mountPath: /etc/ceph
+            - name: ceph-bootstrap-osd-keyring
+              mountPath: /var/lib/ceph/bootstrap-osd
+            - name: ceph-bootstrap-mds-keyring
+              mountPath: /var/lib/ceph/bootstrap-mds
+            - name: ceph-bootstrap-rgw-keyring
+              mountPath: /var/lib/ceph/bootstrap-rgw
+          resources:
+            requests:
+              memory: "5Mi"
+              cpu: "250m"
+            limits:
+              memory: "50Mi"
+              cpu: "500m"
+EOF
+	fi
+	
+	local TEMPLATE=/srv/kubernetes/manifests/ceph-mds.yaml
+    if [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << 'EOF' > $TEMPLATE
+---
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  labels:
+    app: ceph
+    daemon: mds
+  name: ceph-mds
+  namespace: ceph
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: ceph-mds
+      namespace: ceph
+      labels:
+        app: ceph
+        daemon: mds
+    spec:
+      nodeSelector:
+        node-type: storage
+      serviceAccount: default
+      volumes:
+        - name: ceph-conf
+          secret:
+            secretName: ceph-conf-combined
+        - name: ceph-bootstrap-osd-keyring
+          secret:
+            secretName: ceph-bootstrap-osd-keyring
+        - name: ceph-bootstrap-mds-keyring
+          secret:
+            secretName: ceph-bootstrap-mds-keyring
+        - name: ceph-bootstrap-rgw-keyring
+          secret:
+            secretName: ceph-bootstrap-rgw-keyring
+      containers:
+        - name: ceph-mds
+          image: ceph/daemon:latest
+          ports:
+            - containerPort: 6800
+          env:
+            - name: CEPH_DAEMON
+              value: MDS
+            - name: CEPHFS_CREATE
+              value: "1"
+            - name: KV_TYPE
+              value: k8s
+            - name: CLUSTER
+              value: ceph
+          volumeMounts:
+            - name: ceph-conf
+              mountPath: /etc/ceph
+            - name: ceph-bootstrap-osd-keyring
+              mountPath: /var/lib/ceph/bootstrap-osd
+            - name: ceph-bootstrap-mds-keyring
+              mountPath: /var/lib/ceph/bootstrap-mds
+            - name: ceph-bootstrap-rgw-keyring
+              mountPath: /var/lib/ceph/bootstrap-rgw
+          livenessProbe:
+              tcpSocket:
+                port: 6800
+              initialDelaySeconds: 60
+              timeoutSeconds: 5
+          readinessProbe:
+              tcpSocket:
+                port: 6800
+              timeoutSeconds: 5
+          resources:
+            requests:
+              memory: "10Mi"
+              cpu: "250m"
+            limits:
+              memory: "50Mi"
+              cpu: "500m"
+EOF
+	fi
+	
+	local TEMPLATE=/home/core/generator/templates/ceph/admin.keyring.tmpl
+    if [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << 'EOF' > $TEMPLATE
+[client.admin]
+  key = {{ $key }}
+  auid = 0
+  caps mds = "allow"
+  caps mon = "allow *"
+  caps osd = "allow *"
+EOF
+	fi
+	
+	local TEMPLATE=/home/core/generator/templates/ceph/bootstrap.keyring.tmpl
+    if [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << 'EOF' > $TEMPLATE
+[client.bootstrap-{{ $service }}]
+  key = {{ $key }}
+  caps mon = "allow profile bootstrap-{{ $service }}"
+EOF
+	fi
+	
+	local TEMPLATE=/home/core/generator/templates/ceph/ceph.conf.tmpl
+    if [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << 'EOF' > $TEMPLATE
+[global]
+fsid = ${fsid:?}
+cephx = ${auth_cephx:-"true"}
+cephx_require_signatures = ${auth_cephx_require_signatures:-"false"}
+cephx_cluster_require_signatures = ${auth_cephx_cluster_require_signatures:-"true"}
+cephx_service_require_signatures = ${auth_cephx_service_require_signatures:-"false"}
+
+# auth
+max_open_files = ${global_max_open_files:-"131072"}
+osd_pool_default_pg_num = ${global_osd_pool_default_pg_num:-"128"}
+osd_pool_default_pgp_num = ${global_osd_pool_default_pgp_num:-"128"}
+osd_pool_default_size = ${global_osd_pool_default_size:-"3"}
+osd_pool_default_min_size = ${global_osd_pool_default_min_size:-"1"}
+
+mon_osd_full_ratio = ${global_mon_osd_full_ratio:-".95"}
+mon_osd_nearfull_ratio = ${global_mon_osd_nearfull_ratio:-".85"}
+
+mon_host = ${global_mon_host:-'ceph-mon'}
+
+[mon]
+mon_osd_down_out_interval = ${mon_mon_osd_down_out_interval:-"600"}
+mon_osd_min_down_reporters = ${mon_mon_osd_min_down_reporters:-"4"}
+mon_clock_drift_allowed = ${mon_mon_clock_drift_allowed:-".15"}
+mon_clock_drift_warn_backoff = ${mon_mon_clock_drift_warn_backoff:-"30"}
+mon_osd_report_timeout = ${mon_mon_osd_report_timeout:-"300"}
+
+
+[osd]
+journal_size = ${osd_journal_size:-"100"}
+cluster_network = ${osd_cluster_network:-'10.244.0.0/16'}
+public_network = ${osd_public_network:-'10.244.0.0/16'}
+osd_mkfs_type = ${osd_osd_mkfs_type:-"xfs"}
+osd_mkfs_options_xfs = ${osd_osd_mkfs_options_xfs:-"-f -i size=2048"}
+osd_mon_heartbeat_interval = ${osd_osd_mon_heartbeat_interval:-"30"}
+osd_max_object_name_len = ${osd_max_object_name_len:-"256"}
+
+#crush
+osd_pool_default_crush_rule = ${osd_pool_default_crush_rule:-"0"}
+osd_crush_update_on_start = ${osd_osd_crush_update_on_start:-"true"}
+
+#backend
+osd_objectstore = ${osd_osd_objectstore:-"filestore"}
+
+#performance tuning
+filestore_merge_threshold = ${osd_filestore_merge_threshold:-"40"}
+filestore_split_multiple = ${osd_filestore_split_multiple:-"8"}
+osd_op_threads = ${osd_osd_op_threads:-"8"}
+filestore_op_threads = ${osd_filestore_op_threads:-"8"}
+filestore_max_sync_interval = ${osd_filestore_max_sync_interval:-"5"}
+osd_max_scrubs = ${osd_osd_max_scrubs:-"1"}
+
+
+#recovery tuning
+osd_recovery_max_active = ${osd_osd_recovery_max_active:-"5"}
+osd_max_backfills = ${osd_osd_max_backfills:-"2"}
+osd_recovery_op_priority = ${osd_osd_recovery_op_priority:-"2"}
+osd_client_op_priority = ${osd_osd_client_op_priority:-"63"}
+osd_recovery_max_chunk = ${osd_osd_recovery_max_chunk:-"1048576"}
+osd_recovery_threads = ${osd_osd_recovery_threads:-"1"}
+
+#ports
+ms_bind_port_min = ${osd_ms_bind_port_min:-"6800"}
+ms_bind_port_max = ${osd_ms_bind_port_max:-"7100"}
+
+[client]
+rbd_cache_enabled = ${client_rbd_cache_enabled:-"true"}
+rbd_cache_writethrough_until_flush = ${client_rbd_cache_writethrough_until_flush:-"true"}
+rbd_default_features = ${client_rbd_default_features:-"1"}
+
+[mds]
+mds_cache_size = ${mds_mds_cache_size:-"100000"}
+EOF
+	fi
+	
+	local TEMPLATE=/home/core/generator/templates/ceph/mon.keyring.tmpl
+    if [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << 'EOF' > $TEMPLATE
+[mon.]
+  key = {{ $key }}
+  caps mon = "allow *"
+EOF
+	fi
+	
+	local TEMPLATE=/home/core/generator/ceph-key.py
+    if [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << 'EOF' > $TEMPLATE
+#!/bin/python
+import os
+import struct
+import time
+import base64
+
+key = os.urandom(16)
+header = struct.pack(
+    '<hiih',
+    1,                 # le16 type: CEPH_CRYPTO_AES
+    int(time.time()),  # le32 created: seconds
+    0,                 # le32 created: nanoseconds,
+    len(key),          # le16: len(key)
+)
+print(base64.b64encode(header + key).decode('ascii'))
+EOF
+	fi
+	
+	local TEMPLATE=/home/core/generator/generate_secrets.sh
+    if [ ! -f "${TEMPLATE}" ]; then
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << 'EOF' > $TEMPLATE
+#!/bin/bash
+
+gen-fsid() {
+  echo "$(uuidgen)"
+}
+
+gen-ceph-conf-raw() {
+  fsid=${1:?}
+  shift
+  conf=$(sigil -p -f templates/ceph/ceph.conf.tmpl "fsid=${fsid}" $@)
+  echo "${conf}"
+}
+
+gen-ceph-conf() {
+  fsid=${1:?}
+  shift
+  conf=$(sigil -p -f templates/ceph/ceph.conf.tmpl "fsid=${fsid}" $@)
+  echo "${conf}"
+}
+
+gen-admin-keyring() {
+  key=$(python ceph-key.py)
+  keyring=$(sigil -f templates/ceph/admin.keyring.tmpl "key=${key}")
+  echo "${keyring}"
+}
+
+gen-mon-keyring() {
+  key=$(python ceph-key.py)
+  keyring=$(sigil -f templates/ceph/mon.keyring.tmpl "key=${key}")
+  echo "${keyring}"
+}
+
+gen-combined-conf() {
+  fsid=${1:?}
+  shift
+  conf=$(sigil -p -f templates/ceph/ceph.conf.tmpl "fsid=${fsid}" $@)
+  echo "${conf}" > ceph.conf
+
+  key=$(python ceph-key.py)
+  keyring=$(sigil -f templates/ceph/admin.keyring.tmpl "key=${key}")
+  echo "${key}" > ceph-client-key
+  echo "${keyring}" > ceph.client.admin.keyring
+
+  key=$(python ceph-key.py)
+  keyring=$(sigil -f templates/ceph/mon.keyring.tmpl "key=${key}")
+  echo "${keyring}" > ceph.mon.keyring
+}
+
+gen-bootstrap-keyring() {
+  service="${1:-osd}"
+  key=$(python ceph-key.py)
+  bootstrap=$(sigil -f templates/ceph/bootstrap.keyring.tmpl "key=${key}" "service=${service}")
+  echo "${bootstrap}"
+}
+
+gen-all-bootstrap-keyrings() {
+  gen-bootstrap-keyring osd > ceph.osd.keyring
+  gen-bootstrap-keyring mds > ceph.mds.keyring
+  gen-bootstrap-keyring rgw > ceph.rgw.keyring
+}
+
+gen-all() {
+  gen-combined-conf $@
+  gen-all-bootstrap-keyrings
+}
+
+
+main() {
+  set -eo pipefail
+  case "$1" in
+  fsid)            shift; gen-fsid $@;;
+  ceph-conf-raw)            shift; gen-ceph-conf-raw $@;;
+  ceph-conf)            shift; gen-ceph-conf $@;;
+  admin-keyring)            shift; gen-admin-keyring $@;;
+  mon-keyring)            shift; gen-mon-keyring $@;;
+  bootstrap-keyring)            shift; gen-bootstrap-keyring $@;;
+  combined-conf)               shift; gen-combined-conf $@;;
+  all)                         shift; gen-all $@;;
+  esac
+}
+
+main "$@"
+EOF
+	chmod +x ${TEMPLATE}
+	fi
+	
+	export osd_cluster_network=$POD_NETWORK
+	export osd_public_network=$POD_NETWORK
+
+	cd /home/core/generator
+	./generate_secrets.sh all `./generate_secrets.sh fsid`
+	
+	kubectl create namespace ceph
+	kubectl create secret generic ceph-conf-combined --from-file=ceph.conf --from-file=ceph.client.admin.keyring --from-file=ceph.mon.keyring --namespace=ceph
+	kubectl create secret generic ceph-bootstrap-rgw-keyring --from-file=ceph.keyring=ceph.rgw.keyring --namespace=ceph
+	kubectl create secret generic ceph-bootstrap-mds-keyring --from-file=ceph.keyring=ceph.mds.keyring --namespace=ceph
+	kubectl create secret generic ceph-bootstrap-osd-keyring --from-file=ceph.keyring=ceph.osd.keyring --namespace=ceph
+	kubectl create secret generic ceph-client-key --from-file=ceph-client-key --namespace=ceph
+	
+	kubectl create \
+	-f /srv/kubernetes/manifests/ceph-ods.yaml \
+	-f /srv/kubernetes/manifests/ceph-mon.yaml \
+	-f /srv/kubernetes/manifests/ceph-mds.yaml \
+	--namespace=ceph
+}
+
 function start_addons {
     echo "Waiting for Kubernetes API..."
     until curl --silent "http://127.0.0.1:8080/version"
@@ -1465,11 +2133,11 @@ function start_addons {
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dns-autoscaler-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
     echo "K8S: Heapster/InfluxDB/Graphana addon"
-	docker run --rm --net=host -v /srv/kubernetes/manifests:/host/manifests $HYPERKUBE_IMAGE_REPO:$K8S_VER /hyperkube kubectl apply -f /host/manifests/heapster-influx-graphana-de.yaml,/host/manifests/heapster-influx-graphana-svc.yaml
+	kubectl apply -f /host/manifests/heapster-influx-graphana-de.yaml,/host/manifests/heapster-influx-graphana-svc.yaml
     echo "K8S: Kube-Lego addon"
-    docker run --rm --net=host -v /srv/kubernetes/manifests:/host/manifests $HYPERKUBE_IMAGE_REPO:$K8S_VER /hyperkube kubectl apply -f /host/manifests/kube-lego.yaml
+    kubectl apply -f /host/manifests/kube-lego.yaml
 	echo "K8S: NGinx Ingress addon"
-    docker run --rm --net=host -v /srv/kubernetes/manifests:/host/manifests $HYPERKUBE_IMAGE_REPO:$K8S_VER /hyperkube kubectl apply -f /host/manifests/ingress-nginx.yaml,/host/manifests/default-backend.yaml
+    kubectl apply -f /host/manifests/ingress-nginx.yaml,/host/manifests/default-backend.yaml
     echo "K8S: Dashboard addon"
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dashboard-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dashboard-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
@@ -1483,20 +2151,17 @@ function start_calico {
         sleep 5
     done
     echo "Deploying Calico"
-    # Deploy Calico
-    #TODO: change to rkt once this is resolved (https://github.com/coreos/rkt/issues/3181)
-    docker run --rm --net=host -v /srv/kubernetes/manifests:/host/manifests $HYPERKUBE_IMAGE_REPO:$K8S_VER /hyperkube kubectl apply -f /host/manifests/calico-config.yaml,/host/manifests/calico.yaml
+    kubectl apply -f /host/manifests/calico-config.yaml,/host/manifests/calico.yaml
 
 }
 
+install_kubectl
 init_config
 init_templates
 
 chmod +x /opt/bin/host-rkt
 
 init_flannel
-
-#systemctl stop update-engine; systemctl mask update-engine
 
 systemctl daemon-reload
 
@@ -1514,4 +2179,5 @@ if [ $USE_CALICO = "true" ]; then
 fi
 
 start_addons
+install_ceph
 echo "DONE"

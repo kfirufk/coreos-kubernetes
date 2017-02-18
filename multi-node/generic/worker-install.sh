@@ -34,6 +34,9 @@ export CONTAINER_RUNTIME=docker
 ENV_FILE=/run/coreos-kubernetes/options.env
 
 # -------------
+mkdir -p /opt/ceph
+mkdir -p /home/core/data/ceph/osd
+mkdir -p /home/core/data/ceph/mon
 
 function init_config {
     local REQUIRED=( 'ADVERTISE_IP' 'ETCD_ENDPOINTS' 'CONTROLLER_ENDPOINT' 'DNS_SERVICE_IP' 'K8S_VER' 'HYPERKUBE_IMAGE_REPO' 'USE_CALICO' )
@@ -61,6 +64,10 @@ function init_templates {
     if [ ${USE_CALICO} = "true" ]; then
         local CALICO_OPTS="--volume cni-bin,kind=host,source=/opt/cni/bin \
         --mount volume=cni-bin,target=/opt/cni/bin"
+		mkdir -p /lib/modules
+		mkdir -p /var/run/calico
+		mkdir -p /opt/cni/bin
+		mkdir -p /etc/kubernetes/cni/net.d
         echo "RKT Configured for Calico Binaries"
     else
         local CALICO_OPTS=""
