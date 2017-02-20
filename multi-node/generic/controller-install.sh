@@ -5,7 +5,7 @@ set -e
 export ETCD_ENDPOINTS=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_VER=v1.5.2_coreos.0
+export K8S_VER=v1.5.3_coreos.0
 
 # Hyperkube image repository to use.
 export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
@@ -29,8 +29,6 @@ export K8S_SERVICE_IP=10.3.0.1
 # This IP must be in the range of the SERVICE_IP_RANGE and cannot be the first IP in the range.
 # This same IP must be configured on all worker nodes to enable DNS service discovery.
 export DNS_SERVICE_IP=10.3.0.10
-
-export GLOBAL_IP_RANGE=10.0.0.0/8
 
 # Whether to use Calico for Kubernetes network policy.
 export USE_CALICO=false
@@ -1117,7 +1115,7 @@ FLANNELD_ETCD_ENDPOINTS=$ETCD_ENDPOINTS
 EOF
     fi
 
-    local TEMPLATE=/etc/systemd/system/flanneld.service.d/40-ExecStartPre-symlink.conf.conf
+    local TEMPLATE=/etc/systemd/system/flanneld.service.d/40-ExecStartPre-symlink.conf
     if [ ! -f $TEMPLATE ]; then
         echo "TEMPLATE: $TEMPLATE"
         mkdir -p $(dirname $TEMPLATE)
@@ -1695,9 +1693,9 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP
             - name: CEPH_PUBLIC_NETWORK
-              value: ${$GLOBAL_IP_RANGE}
+              value: ${$POD_NETWORK}
             - name: CEPH_CLUSTER_NETWORK
-              value: ${$GLOBAL_IP_RANGE}
+              value: ${$POD_NETWORK}
             - name: HOSTNAME
               valueFrom:
                 fieldRef:
@@ -2102,8 +2100,8 @@ EOF
 	chmod +x ${TEMPLATE}
 	fi
 	
-	export osd_cluster_network=$GLOBAL_IP_RANGE
-	export osd_public_network=$GLOBAL_IP_RANGE
+	export osd_cluster_network=$POD_NETWORK
+	export osd_public_network=$POD_NETWORK
 
 	cd /home/core/generator
 	./generate_secrets.sh all `./generate_secrets.sh fsid`
