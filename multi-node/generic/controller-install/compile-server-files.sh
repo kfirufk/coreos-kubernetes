@@ -4,7 +4,11 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 SERVER_FILES_DIR="server-files"
 TEMPLATE_DIR="templates"
 ENVSUBST_BIN=$(which envsubst)
+YES_BIN=$(which yes)
 ENV_FILE="env.sh"
+YES_COMMAND="yes"
+OVERWRITE_WITH_CONFIRMATION_PROMPT=true
+
 if [ ! -f ${DIR}/${ENV_FILE} ]; then
 	echo "could not find ${ENV_FILE} in ${DIR}"
 	exit
@@ -21,6 +25,12 @@ if [  -d ${1} ]; then
     exit
 fi
 
+if [ -x "${YES_BIN}" ]; then
+    echo "found yes executable in ${YES_BIN}"
+else
+    echo "could not find yes in PATH"
+    exit
+fi
 
 if [ -x "${ENVSUBST_BIN}" ]; then
 	echo "found envsubst executable in ${ENVSUBST_BIN}"
@@ -54,7 +64,17 @@ for f in `find ${TEMPLATE_DIR} -type f`; do
 	FILE=${f#${TEMPLATE_DIR}/}
 	echo "parsing template file ${FILE}"
 	${ENVSUBST_BIN} < ${f} > ${1}/${FILE}
-	
-done	
+done
 
-echo "done compliling template"
+echo "done compiling template"
+
+if [ "$OVERWRITE_WITH_CONFIRMATION_PROMPT" = true ]; then
+    echo "copying files with overwrite confirmation prompt..."
+    cp -Riv ${DIR}/${TEMPLATE_DIR}/* /
+else
+    echo "copying files and overwriting any previous files..."
+    ${YES_BIN} | cp -Riv ${DIR}/${TEMPLATE_DIR}/* /
+fi
+
+echo "DONE! time to install kubernetes!"
+
