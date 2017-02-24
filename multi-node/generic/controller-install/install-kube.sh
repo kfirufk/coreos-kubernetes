@@ -1,34 +1,43 @@
 #!/bin/bash
 
+set -o errexit
+
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ENV_FILE="env.sh"
+
+source ${DIR}/${ENV_FILE}
+
+
 function install_kubectl {
+
+echo "installing kubectl..."
 
 mkdir -p /opt/bin
 
 curl -o /opt/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/${K8S_VER::-9}/bin/linux/amd64/kubectl
 chmod +x /opt/bin/kubectl
 
+echo "done installing kubectl"
+
 }
 
 function init_config {
+
+    echo "checking config environment variables..."
     local REQUIRED=('ADVERTISE_IP' 'POD_NETWORK' 'ETCD_ENDPOINTS' 'SERVICE_IP_RANGE' 'K8S_SERVICE_IP' 'DNS_SERVICE_IP' 'K8S_VER' 'HYPERKUBE_IMAGE_REPO' 'USE_CALICO')
-
-    if [ -f $ENV_FILE ]; then
-        export $(cat $ENV_FILE | xargs)
-    fi
-
     if [ -z $ADVERTISE_IP ]; then
         export ADVERTISE_IP=$(awk -F= '/COREOS_PUBLIC_IPV4/ {print $2}' /etc/environment)
     fi
-
     for REQ in "${REQUIRED[@]}"; do
-        if [ -z "$(eval echo \$$REQ)" ]; then
-            echo "Missing required config value: ${REQ}"
-            exit 1
-        fi
+	if [ ! "${!REQ}" ]; then echo "Need to set \$$REQ" >&2; exit 1; fi
     done
+
+    echo "done checking config environment variables..."
 }
 
 function init_flannel {
+    echo "initializing flannel...."
     echo "Waiting for etcd..."
     while true
     do
@@ -49,9 +58,11 @@ function init_flannel {
     if [ -z "$(echo $RES | grep '"action":"create"')" ] && [ -z "$(echo $RES | grep 'Key already exists')" ]; then
         echo "Unexpected error configuring flannel pod network: $RES"
     fi
+    echo "done initializing flannel"
 }
 
 function start_addons {
+    echo "starting addons..."
     echo "Waiting for Kubernetes API..."
     until curl --silent "http://127.0.0.1:8080/version"
     do
@@ -72,10 +83,11 @@ function start_addons {
     echo "K8S: Dashboard addon"
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dashboard-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
     curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dashboard-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+   echo "finished starting addons"
 }
 
 function install_ceph {
-
+        echo "installing ceph..."
 	PYTHON=${PYTHON:-"2.7.13.2713"}
 	SIGIL=${SIGIL:-"0.4.0"}
 
@@ -120,24 +132,41 @@ function install_ceph {
 	-f /srv/kubernetes/manifests/ceph-mon.yaml \
 	-f /srv/kubernetes/manifests/ceph-mds.yaml \
 	--namespace=ceph
-
+        echo "done installing ceph"
 }	
+
+function start_calico {
+    echo "starting calico..."
+    echo "Waiting for Kubernetes API..."
+    # wait for the API
+    until curl --silent "http://127.0.0.1:8080/version/"
+    do
+        sleep 5
+    done
+    echo "Deploying Calico"
+    kubectl apply -f /srv/kubernetes/manifests/calico-config.yaml,/srv/kubernetes/manifests/calico.yaml
+    echo "finished starting calico"
+}
 
 
 mkdir -p /opt/ceph
 mkdir -p /home/core/data/ceph/osd
 mkdir -p /home/core/data/ceph/mon
 
-install_kubectl
+#install_kubectl
 init_config
 init_flannel
 #TODO: parse templates and copy them
 systemctl daemon-reload
 if [ $CONTAINER_RUNTIME = "rkt" ]; then
+        echo "enabling load-rkt-stage1"
         systemctl enable load-rkt-stage1
+        echo "enabling rkt-api"
         systemctl enable rkt-api
 fi
+echo "enabling and starting flannel"
 systemctl enable flanneld; systemctl start flanneld
+echo "enabling and starting kubelet"
 systemctl enable kubelet; systemctl start kubelet
 if [ $USE_CALICO = "true" ]; then
         start_calico
