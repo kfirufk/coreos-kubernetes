@@ -7,9 +7,9 @@ ENVSUBST_BIN=$(which envsubst)
 YES_BIN=$(which yes)
 ENV_FILE="env.sh"
 YES_COMMAND="yes"
-OVERWRITE_WITH_CONFIRMATION_PROMPT=true
+OVERWRITE_WITH_CONFIRMATION_PROMPT=false
 
-if [ ! -f ${DIR}/${ENV_FILE} ]; then
+if [ ! -f "${DIR}/${ENV_FILE}" ]; then
 	echo "could not find ${ENV_FILE} in ${DIR}"
 	exit
 fi
@@ -39,23 +39,14 @@ else
 	exit
 fi	
 	
-
-if cp -r ${DIR}/${SERVER_FILES_DIR} ${DIR}/${1}; then
-    echo "succesfully copied server files into into ${DIR}/${1}"
-else
-    echo "could not copy server files directory into ${DIR}/${1}"
-    exit
-fi
-
-
 source ${DIR}/${ENV_FILE}
 
 for d in `find ${TEMPLATE_DIR} -type d`; do
-	DIR=${d#${TEMPLATE_DIR}/}
-	if mkdir -p ${1}/${DIR}; then
-		echo "creating directory ${1}/${DIR}"
+	T_DIR=${d#${TEMPLATE_DIR}/}
+	if mkdir -p ${1}/${T_DIR}; then
+		echo "creating directory ${1}/${T_DIR}"
 	else
-		echo "failed creating directory ${1}/${DIR}"
+		echo "failed creating directory ${1}/${T_DIR}"
 		exit
 	fi	
 done       	
@@ -70,10 +61,16 @@ echo "done compiling template"
 
 if [ "$OVERWRITE_WITH_CONFIRMATION_PROMPT" = true ]; then
     echo "copying files with overwrite confirmation prompt..."
-    cp -Riv ${DIR}/${TEMPLATE_DIR}/* /
+    echo "from {DIR}/${SERVER_FILES_DIR}"
+    cp -Riv ${DIR}/${SERVER_FILES_DIR}/* ${DIR}/${1}
+    echo "from ${DIR}/${1}"
+    cp -Riv ${DIR}/${1}/* /
 else
     echo "copying files and overwriting any previous files..."
-    ${YES_BIN} | cp -Rv ${DIR}/${TEMPLATE_DIR}/* /
+    echo "from {DIR}/${SERVER_FILES_DIR}"
+    ${YES_BIN} | cp -Rv ${DIR}/${SERVER_FILES_DIR}/* ${DIR}/${1}
+    echo "from ${DIR}/${1}"
+    ${YES_BIN} | cp -Rv ${DIR}/${1}/* /
 fi
 
 echo "DONE! time to install kubernetes!"
