@@ -73,7 +73,7 @@ if [ "$OVERWRITE_WITH_CONFIRMATION_PROMPT" = true ]; then
     cp -Riv ${DIR}/${TEMPLATE_DIR}/* /
 else
     echo "copying files and overwriting any previous files..."
-    ${YES_BIN} | cp -Riv ${DIR}/${TEMPLATE_DIR}/* /
+    ${YES_BIN} | cp -Rv ${DIR}/${TEMPLATE_DIR}/* /
 fi
 
 echo "DONE! time to install kubernetes!"
