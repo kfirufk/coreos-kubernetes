@@ -81,9 +81,9 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP
             - name: CEPH_PUBLIC_NETWORK
-              value: ${$POD_NETWORK}
+              value: ${POD_NETWORK}
             - name: CEPH_CLUSTER_NETWORK
-              value: ${$POD_NETWORK}
+              value: ${POD_NETWORK}
             - name: HOSTNAME
               valueFrom:
                 fieldRef:

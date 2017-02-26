@@ -71,18 +71,16 @@ function start_addons {
 
     echo
     echo "K8S: DNS addon"
-    curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dns-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
-    curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
-    curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dns-autoscaler-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
+    kubectl apply -f /srv/kubernetes/manifests/kube-dns-de.yaml -f /srv/kubernetes/manifests/kube-dns-svc.yaml -f /srv/kubernetes/manifests/kube-dns-autoscaler-de.yaml --namespace kube-system
+
     echo "K8S: Heapster/InfluxDB/Graphana addon"
     kubectl apply -f /srv/kubernetes/manifests/heapster-influx-graphana-de.yaml,/srv/kubernetes/manifests/heapster-influx-graphana-svc.yaml
     echo "K8S: Kube-Lego addon"
     kubectl apply -f /srv/kubernetes/manifests/kube-lego.yaml
 	echo "K8S: NGinx Ingress addon"
-    kubectl apply -f /srv/kubernetes/manifests/ingress-nginx.yaml,/srv/kubernetes/manifests/default-backend.yaml
+    kubectl apply -f /srv/kubernetes/manifests/ingress-nginx.yaml -f /srv/kubernetes/manifests/default-backend.yaml
     echo "K8S: Dashboard addon"
-    curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dashboard-de.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
-    curl --silent -H "Content-Type: application/yaml" -XPOST -d"$(cat /srv/kubernetes/manifests/kube-dashboard-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+    kubectl apply -f /srv/kubernetes/manifests/kube-dashboard-de.yaml -f /srv/kubernetes/manifests/kube-dashboard-svc.yaml --namespace kube-system
    echo "finished starting addons"
 }
 
@@ -109,6 +107,7 @@ function install_ceph {
 
 
 	#Install Sigil
+	cd /opt
 	wget https://github.com/gliderlabs/sigil/releases/download/v${SIGIL}/sigil_${SIGIL}_Linux_x86_64.tgz
 	tar -xzvf sigil_${SIGIL}_Linux_x86_64.tgz
 
@@ -128,7 +127,7 @@ function install_ceph {
 	kubectl create secret generic ceph-client-key --from-file=ceph-client-key --namespace=ceph
 	
 	kubectl create \
-	-f /srv/kubernetes/manifests/ceph-ods.yaml \
+	-f /srv/kubernetes/manifests/ceph-osd.yaml \
 	-f /srv/kubernetes/manifests/ceph-mon.yaml \
 	-f /srv/kubernetes/manifests/ceph-mds.yaml \
 	--namespace=ceph
@@ -165,9 +164,9 @@ if [ $CONTAINER_RUNTIME = "rkt" ]; then
         systemctl enable rkt-api
 fi
 echo "enabling and starting flannel"
-systemctl enable flanneld; systemctl start flanneld
+systemctl stop flanneld; systemctl enable flanneld; systemctl start flanneld
 echo "enabling and starting kubelet"
-systemctl enable kubelet; systemctl start kubelet
+systemctl stop kubelet; systemctl enable kubelet; systemctl start kubelet
 if [ $USE_CALICO = "true" ]; then
         start_calico
 fi
