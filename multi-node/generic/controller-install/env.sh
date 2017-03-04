@@ -1,7 +1,7 @@
 #!/bin/bash
 export ETCD_ENDPOINTS=http://127.0.0.1:4001
 export ADVERTISE_IP=192.168.1.2
-export K8S_VER=v1.6.0-beta.0_coreos.0
+export K8S_VER=v1.5.3_coreos.0
 export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
 export POD_NETWORK=10.2.0.0/16
 export SERVICE_IP_RANGE=10.3.0.0/24

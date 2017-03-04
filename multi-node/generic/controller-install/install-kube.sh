@@ -152,7 +152,7 @@ mkdir -p /opt/ceph
 mkdir -p /home/core/data/ceph/osd
 mkdir -p /home/core/data/ceph/mon
 
-#install_kubectl
+install_kubectl
 init_config
 init_flannel
 #TODO: parse templates and copy them
@@ -172,4 +172,4 @@ if [ $USE_CALICO = "true" ]; then
 fi
 start_addons
 install_ceph
-echo "DONE"
+cho "DONE"

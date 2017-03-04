@@ -7,5 +7,5 @@
 # eventually be obviated when the write-api stuff gets upstream and rkt gc is
 # through the api-server. Related issue:
 # https://github.com/coreos/rkt/issues/2878
-exec nsenter -m -u -i -n -p -t 1 -- /usr/bin/rkt "\$@"
+exec nsenter -m -u -i -n -p -t 1 -- /usr/bin/rkt "$@"
 
