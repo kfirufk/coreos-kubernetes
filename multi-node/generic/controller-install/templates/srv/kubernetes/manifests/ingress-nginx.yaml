@@ -70,11 +70,10 @@ spec:
           protocol: TCP
           containerPort: 443
           hostPort: 443
-        hostNetwork: true
         args:
         - /nginx-ingress-controller
         - --default-backend-service=$(POD_NAMESPACE)/default-http-backend
         - --configmap=$(POD_NAMESPACE)/nginx-load-balancer-conf
       nodeSelector:
         ingress: "true"
-
+      hostNetwork: true
