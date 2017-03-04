@@ -157,7 +157,6 @@ systemctl restart docker
 
 init_config
 init_flannel
-#TODO: parse templates and copy them
 systemctl daemon-reload
 if [ $CONTAINER_RUNTIME = "rkt" ]; then
         echo "enabling load-rkt-stage1"
