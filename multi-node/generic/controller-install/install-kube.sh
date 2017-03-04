@@ -151,6 +151,10 @@ mkdir -p /home/core/data/ceph/osd
 mkdir -p /home/core/data/ceph/mon
 
 install_kubectl
+
+echo starting docker..
+systemctl restart docker
+
 init_config
 init_flannel
 #TODO: parse templates and copy them
@@ -163,6 +167,10 @@ if [ $CONTAINER_RUNTIME = "rkt" ]; then
 fi
 echo "enabling and starting flannel"
 systemctl stop flanneld; systemctl enable flanneld; systemctl start flanneld
+
+echo restaring docker service, since it breaks after flanneld restart, donno if it's really required :)
+systemctl restart docker
+
 echo "enabling and starting kubelet"
 systemctl stop kubelet; systemctl enable kubelet; systemctl start kubelet
 if [ $USE_CALICO = "true" ]; then
