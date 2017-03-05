@@ -13,22 +13,32 @@ spec:
     command:
     - /hyperkube
     - proxy
-    - --master=http://127.0.0.1:8080
     - --cluster-cidr=${POD_NETWORK}
+    - --kubeconfig=/etc/kubernetes/controller-kubeconfig.yaml
     securityContext:
       privileged: true
     volumeMounts:
     - mountPath: /etc/ssl/certs
-      name: ssl-certs-host
+      name: "ssl-certs"
+    - mountPath: /etc/kubernetes/controller-kubeconfig.yaml
+      name: "kubeconfig"
+      readOnly: true
+    - mountPath: /etc/kubernetes/ssl
+      name: "etc-kube-ssl"
       readOnly: true
     - mountPath: /var/run/dbus
       name: dbus
       readOnly: false
   volumes:
   - hostPath:
-      path: /usr/share/ca-certificates
-    name: ssl-certs-host
+      path: "/usr/share/ca-certificates"
+    name: "ssl-certs"
+  - hostPath:
+      path: "/etc/kubernetes/controller-kubeconfig.yaml"
+    name: "kubeconfig"
+  - hostPath:
+      path: "/etc/kubernetes/ssl"
+    name: "etc-kube-ssl"
   - hostPath:
       path: /var/run/dbus
     name: dbus
-
