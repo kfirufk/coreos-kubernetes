@@ -13,7 +13,6 @@ spec:
     command:
     - /hyperkube
     - proxy
-    - --master=${CONTROLLER_ENDPOINT}
     - --cluster-cidr=${POD_NETWORK}
     - --kubeconfig=/etc/kubernetes/worker-kubeconfig.yaml
     securityContext:
@@ -31,16 +30,15 @@ spec:
       name: dbus
       readOnly: false
   volumes:
-  - name: "ssl-certs"
-    hostPath:
+  - hostPath:
       path: "/usr/share/ca-certificates"
-  - name: "kubeconfig"
-    hostPath:
+    name: "ssl-certs"
+  - hostPath:
       path: "/etc/kubernetes/worker-kubeconfig.yaml"
-  - name: "etc-kube-ssl"
-    hostPath:
+    name: "kubeconfig"
+  - hostPath: 
       path: "/etc/kubernetes/ssl"
+    name: "etc-kube-ssl"
   - hostPath:
       path: /var/run/dbus
     name: dbus
-
