@@ -48,6 +48,7 @@ function init_flannel {
     echo "done initializing flannel"
 }
 
+mkdir -p /var/run/calico
 init_config
 systemctl daemon-reload
 
