@@ -159,12 +159,13 @@ mkdir -p /home/core/data/ceph/mon
 
 install_kubectl
 
-echo starting docker..
-systemctl restart docker
-
 init_config
 init_flannel
 systemctl daemon-reload
+echo starting docker..
+systemctl restart docker
+
+
 if [ $CONTAINER_RUNTIME = "rkt" ]; then
         echo "enabling load-rkt-stage1"
         systemctl enable load-rkt-stage1
