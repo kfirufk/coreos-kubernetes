@@ -12,7 +12,7 @@ function install_kubectl {
 echo "installing kubectl..."
 
 mkdir -p /opt/bin
-
+mkdir -p /var/run/calico
 curl -o /opt/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/${K8S_VER::-9}/bin/linux/amd64/kubectl
 chmod +x ${KUBECTL_BIN}
 
