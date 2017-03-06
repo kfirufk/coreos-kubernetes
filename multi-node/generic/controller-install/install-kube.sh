@@ -82,6 +82,13 @@ function start_addons {
    echo "finished starting addons"
 }
 
+function install_cni {
+	echo "installing cni..."
+	wget https://github.com/containernetworking/cni/releases/download/v0.5.0-rc1/cni-amd64-v0.5.0-rc1.tgz -O /tmp/cni.tgz
+	tar xvfz /tmp/cni.tgz -C /opt/cni/bin
+	rm /tmp/cni.tgz
+}
+
 function install_ceph {
         echo "installing ceph..."
 	PYTHON=${PYTHON:-"2.7.13.2713"}
@@ -145,7 +152,7 @@ function start_calico {
     echo "finished starting calico"
 }
 
-
+install_cni
 mkdir -p /opt/ceph
 mkdir -p /home/core/data/ceph/osd
 mkdir -p /home/core/data/ceph/mon
@@ -167,7 +174,7 @@ fi
 echo "enabling and starting flannel"
 systemctl stop flanneld; systemctl enable flanneld; systemctl start flanneld
 
-echo restaring docker service, since it breaks after flanneld restart, donno if it's really required :)
+echo restaring docker service, since it breaks after flanneld restart, donno if its really required
 systemctl restart docker
 
 echo "enabling and starting kubelet"
