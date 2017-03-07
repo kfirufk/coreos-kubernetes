@@ -1,4 +1,7 @@
 #!/bin/bash
+export MASTER_HOST=coreos-2.tux-in.com
+export WORKER_IP=192.168.1.3
+export WORKER_FQDN=coreos-3.tux-in.com
 export ETCD_ENDPOINTS=http://127.0.0.1:4001
 export ADVERTISE_IP=192.168.1.2
 export K8S_VER=v1.5.3_coreos.0
