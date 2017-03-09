@@ -28,7 +28,7 @@ spec:
         # container programs network policy and routes on each
         # host.
         - name: calico-node
-          image: quay.io/calico/node:v1.1.0-rc6-6-gc71f6fa3
+          image: quay.io/calico/node:v1.1.0-rc7-1-g98f48057
           command: ["/bin/sh", "-c"]
           args: ["mount -o remount,rw /proc/sys && start_runit"]
           env:

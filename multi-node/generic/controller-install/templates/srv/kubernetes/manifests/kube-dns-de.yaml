@@ -117,7 +117,7 @@ spec:
           requests:
             memory: 10Mi
       - name: healthz
-        image: gcr.io/google_containers/exechealthz-amd64:1.2
+        image: gcr.io/google_containers/exechealthz-amd64:v1.2.0
         resources:
           limits:
             memory: 50Mi
