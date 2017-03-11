@@ -48,8 +48,18 @@ function init_flannel {
     echo "done initializing flannel"
 }
 
+function install_cni {
+        echo "installing cni..."
+        mkdir -p /opt/cni/bin
+        wget https://github.com/containernetworking/cni/releases/download/v0.5.0/cni-amd64-v0.5.0.tgz -O /tmp/cni.tgz
+        tar xvfz /tmp/cni.tgz -C /opt/cni/bin
+        rm /tmp/cni.tgz
+}
+
+chmod +x /opt/bin/host-rkt
 mkdir -p /var/run/calico
 init_config
+install_cni
 systemctl daemon-reload
 
 if [ $CONTAINER_RUNTIME = "rkt" ]; then
