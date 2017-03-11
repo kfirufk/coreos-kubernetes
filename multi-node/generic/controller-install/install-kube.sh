@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ENV_FILE="env.sh"
@@ -12,6 +12,7 @@ function install_kubectl {
 echo "installing kubectl..."
 
 mkdir -p /opt/bin
+mkdir -p /opt/cni/bin
 mkdir -p /var/run/calico
 curl -o /opt/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/${K8S_VER::-9}/bin/linux/amd64/kubectl
 chmod +x ${KUBECTL_BIN}
@@ -84,7 +85,7 @@ function start_addons {
 
 function install_cni {
 	echo "installing cni..."
-	wget https://github.com/containernetworking/cni/releases/download/v0.5.0-rc1/cni-amd64-v0.5.0-rc1.tgz -O /tmp/cni.tgz
+	wget https://github.com/containernetworking/cni/releases/download/v0.5.0/cni-amd64-v0.5.0.tgz -O /tmp/cni.tgz
 	tar xvfz /tmp/cni.tgz -C /opt/cni/bin
 	rm /tmp/cni.tgz
 }
@@ -169,8 +170,10 @@ systemctl restart docker
 if [ $CONTAINER_RUNTIME = "rkt" ]; then
         echo "enabling load-rkt-stage1"
         systemctl enable load-rkt-stage1
+	systemctl start load-rkt-stage1
         echo "enabling rkt-api"
         systemctl enable rkt-api
+        systemctl start rkt-api
 fi
 echo "enabling and starting flannel"
 systemctl stop flanneld; systemctl enable flanneld; systemctl start flanneld
