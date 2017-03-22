@@ -160,6 +160,9 @@ mkdir -p /home/core/data/ceph/mon
 
 install_kubectl
 
+systemctl stop rkt-gc.timer
+systemctl disable rkt-gc.timer
+
 init_config
 init_flannel
 systemctl daemon-reload

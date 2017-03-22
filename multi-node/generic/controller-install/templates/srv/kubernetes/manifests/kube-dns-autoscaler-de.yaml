@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: autoscaler
-        image: gcr.io/google_containers/cluster-proportional-autoscaler-amd64:1.1.1-r2
+        image: ${GCR_URL_CLUSTER_PROPORTIONAL_AUTOSCALER_AMD64}:${GCR_VER_CLUSTER_PROPORTIONAL_AUTOSCALER_AMD64}
         resources:
             requests:
                 cpu: "20m"

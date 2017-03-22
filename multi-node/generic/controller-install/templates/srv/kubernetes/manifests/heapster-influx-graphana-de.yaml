@@ -23,7 +23,7 @@ spec:
         scheduler.alpha.kubernetes.io/tolerations: '[{"key":"CriticalAddonsOnly", "operator":"Exists"}]'
     spec:
       containers:
-        - image: gcr.io/google_containers/heapster:v1.3.0-beta.0
+        - image: ${GCR_URL_HEAPSTER}:${GCR_VER_HEAPSTER}
           name: heapster
           livenessProbe:
             httpGet:
@@ -36,7 +36,7 @@ spec:
             - /heapster
             - --source=kubernetes.summary_api:''
             - --sink=influxdb:http://monitoring-influxdb:8086
-        - image: gcr.io/google_containers/addon-resizer:1.7
+        - image: ${GCR_URL_ADDON_RESIZER}:${GCR_VER_ADDON_RESIZER}
           name: heapster-nanny
           resources:
             limits:
@@ -83,7 +83,7 @@ spec:
     spec:
       containers:
       - name: influxdb
-        image: gcr.io/google_containers/heapster-influxdb:v0.13.0
+        image: ${GCR_URL_HEAPSTER_INFLUXDB}:${GCR_VER_HEAPSTER_INFLUXDB}
         volumeMounts:
         - mountPath: /data
           name: influxdb-storage
@@ -108,7 +108,7 @@ spec:
     spec:
       containers:
       - name: grafana
-        image: gcr.io/google_containers/heapster-grafana:v2.6.0-2
+        image: ${GCR_URL_HEAPSTER_GRAFANA}:${GCR_VER_HEAPSTER_GRAFANA}
         ports:
           - containerPort: 3000
             protocol: TCP
