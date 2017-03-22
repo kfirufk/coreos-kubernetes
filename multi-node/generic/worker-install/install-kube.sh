@@ -51,7 +51,7 @@ function init_flannel {
 function install_cni {
         echo "installing cni..."
         mkdir -p /opt/cni/bin
-        wget https://github.com/containernetworking/cni/releases/download/v0.5.0/cni-amd64-v0.5.0.tgz -O /tmp/cni.tgz
+        wget https://github.com/containernetworking/cni/releases/download/v0.5.1/cni-amd64-v0.5.1.tgz -O /tmp/cni.tgz
         tar xvfz /tmp/cni.tgz -C /opt/cni/bin
         rm /tmp/cni.tgz
 }
