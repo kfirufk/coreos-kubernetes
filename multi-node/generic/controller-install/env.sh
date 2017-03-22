@@ -39,6 +39,8 @@ export GCR_URL_DNSMASQ_METRICS_AMD64=gcr.io/google_containers/dnsmasq-metrics-am
 export GCR_VER_EXECHEALTHZ_AMD64=v1.2.0
 export GCR_URL_EXECHEALTHZ_AMD64=gcr.io/google_containers/exechealthz-amd64
 
+export QUAY_CALICO_NODE_VER=v1.1.0-2-g60ca42a0
+export QUAY_CALICO_CNI_VER=v1.6.1
 
 if [ ${USE_CALICO} = "true" ]; then
 	export  CALICO_OPTS="--volume cni-bin,kind=host,source=/opt/cni/bin \

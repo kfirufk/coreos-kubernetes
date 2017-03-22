@@ -28,7 +28,7 @@ spec:
         # container programs network policy and routes on each
         # host.
         - name: calico-node
-          image: quay.io/calico/node:v1.1.0-rc8
+          image: quay.io/calico/node:${QUAY_CALICO_NODE_VER}
           command: ["/bin/sh", "-c"]
           args: ["mount -o remount,rw /proc/sys && start_runit"]
           env:
@@ -88,7 +88,7 @@ spec:
         # This container installs the Calico CNI binaries
         # and CNI network config file on each node.
         - name: install-cni
-          image: quay.io/calico/cni:v1.6.0-4-g76b234c
+          image: quay.io/calico/cni:${QUAY_CALICO_CNI_VER}
           command: ["/bin/sh", "-c"]
           args: ["export CNI_NETWORK_CONFIG=$(cat /host/cni_network_config/config.conf) && /install-cni.sh"]
           env:
