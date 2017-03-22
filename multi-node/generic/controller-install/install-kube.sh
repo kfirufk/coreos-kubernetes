@@ -14,7 +14,7 @@ echo "installing kubectl..."
 mkdir -p /opt/bin
 mkdir -p /opt/cni/bin
 mkdir -p /var/run/calico
-curl -o /opt/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/${K8S_VER::-9}/bin/linux/amd64/kubectl
+curl  https://storage.googleapis.com/kubernetes-release/release/${K8S_VER::-9}/bin/linux/amd64/kubectl > /opt/bin/kubectl 
 chmod +x ${KUBECTL_BIN}
 
 echo "done installing kubectl"
@@ -85,7 +85,7 @@ function start_addons {
 
 function install_cni {
 	echo "installing cni..."
-	wget https://github.com/containernetworking/cni/releases/download/v0.5.0/cni-amd64-v0.5.0.tgz -O /tmp/cni.tgz
+	wget https://github.com/containernetworking/cni/releases/download/v0.5.1/cni-amd64-v0.5.1.tgz -O /tmp/cni.tgz
 	tar xvfz /tmp/cni.tgz -C /opt/cni/bin
 	rm /tmp/cni.tgz
 }
