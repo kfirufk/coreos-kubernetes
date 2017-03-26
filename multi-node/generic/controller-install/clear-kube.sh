@@ -6,11 +6,6 @@ KUBECTL_BIN=/opt/bin/kubectl
 
 source ${DIR}/${ENV_FILE}
 
-mkdir -p /opt/ceph
-mkdir -p /home/core/data/ceph/osd
-mkdir -p /home/core/data/ceph/mon
-
-systemctl daemon-reload
 if [ $CONTAINER_RUNTIME = "rkt" ]; then
         echo "disabling load-rkt-stage1"
         systemctl disable load-rkt-stage1
@@ -22,6 +17,10 @@ fi
 echo "disabling flannel"
 systemctl stop flanneld; systemctl disable flanneld 
 
-echo "enabling and starting kubelet"
+echo "disabling and stopping kubelet"
 systemctl stop kubelet; systemctl disable kubelet
-cho "DONE"
+echo "stopping rkt pods"
+timeout 30 rkt list --full 2>/dev/null | awk '{print $1}' | xargs rkt stop
+timeout 30 rkt list --full 2>/dev/null | awk '{print $1}' | xargs rkt rm
+
+echo "DONE"

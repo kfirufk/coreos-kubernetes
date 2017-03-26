@@ -41,6 +41,9 @@ export GCR_URL_EXECHEALTHZ_AMD64=gcr.io/google_containers/exechealthz-amd64
 
 export QUAY_CALICO_NODE_VER=v1.1.0-9-g8501ea95
 export QUAY_CALICO_CNI_VER=v1.6.2
+export QUAY_COREOS_FLANNEL_VER=v0.7.0
+export QUAY_COREOS_ETCD_VER=v3.1.4
+export QUAY_CALICO_KUBE_POLICY_CONTROLLER_VER=v0.5.4
 
 if [ ${USE_CALICO} = "true" ]; then
 	export  CALICO_OPTS="--volume cni-bin,kind=host,source=/opt/cni/bin \
